@@ -1,0 +1,8 @@
+{
+  "appId": "com.axiom.strength",
+  "appName": "Axiom Strength",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}
