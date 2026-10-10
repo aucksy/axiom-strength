@@ -18,6 +18,10 @@ export interface ProgressionContext {
   currentSessionDate?: number; // timestamp of current date for calculating rust/break
 }
 
+export function roundLoad(val: number): number {
+  return Math.round(val * 100) / 100;
+}
+
 /**
  * Calculates deterministic, explainable progressive overload recommendation
  * based on exercise performance history and evidence-based progression models.
@@ -45,6 +49,13 @@ export function calculateProgression(context: ProgressionContext): ProgressionRe
       pastExerciseLogs.push({ session, exercise: foundEx });
     }
   }
+
+  // Ensure chronological sorting (newest first)
+  pastExerciseLogs.sort((a, b) => {
+    const timeA = a.session.endTime || a.session.startTime;
+    const timeB = b.session.endTime || b.session.startTime;
+    return timeB - timeA;
+  });
 
   // Case 0: Insufficient History (First time or no completed working sets)
   if (pastExerciseLogs.length === 0) {
@@ -212,7 +223,7 @@ function calculateStandardDoubleProgression(params: {
 
   // Subcase A: Progression Unlocked!
   if (allHitMaxReps && !hitFailure) {
-    const nextWeight = lastBaseWeight + minIncrement;
+    const nextWeight = roundLoad(lastBaseWeight + minIncrement);
     return {
       exerciseId,
       recommendedWeight: nextWeight,
@@ -245,7 +256,7 @@ function calculateStandardDoubleProgression(params: {
 
   // Subcase C: Severe undershoot (completed reps fell below minReps on first set)
   if (lastWorkingSets[0].completedReps < minReps) {
-    const safeWeight = Math.max(minIncrement, lastBaseWeight - minIncrement);
+    const safeWeight = Math.max(minIncrement, roundLoad(lastBaseWeight - minIncrement));
     return {
       exerciseId,
       recommendedWeight: safeWeight,
@@ -301,13 +312,13 @@ function calculateDynamicDoubleProgression(params: {
     if (hitCeiling) {
       return {
         setNumber: setNum,
-        recommendedWeight: s.weight + minIncrement,
+        recommendedWeight: roundLoad(s.weight + minIncrement),
         targetReps: minReps
       };
     } else {
       return {
         setNumber: setNum,
-        recommendedWeight: s.weight,
+        recommendedWeight: roundLoad(s.weight),
         targetReps: Math.min(maxReps, s.completedReps + 1)
       };
     }
@@ -368,7 +379,7 @@ function calculateLinearProgression(params: {
     lastWorkingSets.every(s => s.completedReps >= targetReps);
 
   if (allCompletedTarget) {
-    const nextWeight = lastBaseWeight + minIncrement;
+    const nextWeight = roundLoad(lastBaseWeight + minIncrement);
     return {
       exerciseId,
       recommendedWeight: nextWeight,
@@ -419,7 +430,7 @@ function calculateBodyweightProgression(params: {
     lastWorkingSets.every(s => s.completedReps >= maxReps);
 
   if (allHitCeiling) {
-    const nextWeight = lastBaseWeight + (minIncrement || 2.5);
+    const nextWeight = roundLoad(lastBaseWeight + (minIncrement || 2.5));
     return {
       exerciseId,
       recommendedWeight: nextWeight,
@@ -477,6 +488,8 @@ export function detectStagnation(sessions: WorkoutSession[]): StagnationAlert[] 
   }
 
   for (const [exId, data] of Object.entries(exerciseMap)) {
+    // Sort chronologically (newest first)
+    data.logs.sort((a, b) => b.date - a.date);
     if (data.logs.length >= 3) {
       const recent3 = data.logs.slice(0, 3);
       const sameWeight = recent3.every(l => Math.abs(l.avgWeight - recent3[0].avgWeight) < 0.1);
@@ -487,10 +500,10 @@ export function detectStagnation(sessions: WorkoutSession[]): StagnationAlert[] 
           exerciseId: exId,
           exerciseName: data.name,
           stalledSessionsCount: 3,
-          lastWeight: recent3[0].avgWeight,
+          lastWeight: roundLoad(recent3[0].avgWeight),
           lastReps: recent3[0].totalReps,
           suggestedAction: 'deload',
-          message: `Stalled at ${recent3[0].avgWeight} for 3 consecutive workouts with no rep growth. A 10% deload or rep-bracket shift is recommended to dissipate accumulated fatigue.`
+          message: `Stalled at ${roundLoad(recent3[0].avgWeight)} for 3 consecutive workouts with no rep growth. A 10% deload or rep-bracket shift is recommended to dissipate accumulated fatigue.`
         });
       }
     }

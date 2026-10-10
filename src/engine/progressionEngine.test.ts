@@ -276,3 +276,116 @@ describe('Warmup Set Calculator', () => {
     expect(sets[3].weight).toBe(85); // 85%
   });
 });
+
+describe('Progression Engine Resilience & Precision', () => {
+  it('handles fractional micro-loading without floating-point errors', () => {
+    const history = [
+      {
+        id: 's-1',
+        routineName: 'Upper',
+        startTime: Date.now() - 86400000,
+        endTime: Date.now() - 82800000,
+        isCompleted: true,
+        exercises: [{
+          id: 'we-1',
+          exerciseId: 'lateral-raise',
+          exerciseName: 'Lateral Raise',
+          category: 'dumbbell' as const,
+          primaryMuscle: 'shoulders' as const,
+          targetRepRange: [10, 15] as [number, number],
+          progressionModel: 'double_progression' as const,
+          minIncrement: 1.25,
+          restSeconds: 90,
+          sets: [
+            { id: '1', setNumber: 1, type: 'working' as const, weight: 12.5, targetReps: 15, completedReps: 15, rir: 2, completed: true },
+            { id: '2', setNumber: 2, type: 'working' as const, weight: 12.5, targetReps: 15, completedReps: 15, rir: 2, completed: true },
+            { id: '3', setNumber: 3, type: 'working' as const, weight: 12.5, targetReps: 15, completedReps: 15, rir: 2, completed: true },
+          ]
+        }],
+        totalVolume: 562.5,
+        totalSets: 3
+      }
+    ];
+
+    const rec = calculateProgression({
+      exerciseId: 'lateral-raise',
+      exerciseName: 'Lateral Raise',
+      progressionModel: 'double_progression',
+      targetRepRange: [10, 15],
+      minIncrement: 1.25,
+      targetSets: 3,
+      history
+    });
+
+    expect(rec.status).toBe('progress');
+    expect(rec.recommendedWeight).toBe(13.75); // Exactly 13.75, not 13.750000000000002
+  });
+
+  it('correctly sorts scrambled session dates to pick the true latest performance', () => {
+    // Session A: 5 days ago (20kg x 12, 12, 12)
+    // Session B: 1 day ago (22.5kg x 10, 9, 8)
+    // Passed in reverse order: [Session A, Session B]
+    const history = [
+      {
+        id: 's-older',
+        routineName: 'Push',
+        startTime: Date.now() - (5 * 86400000),
+        endTime: Date.now() - (5 * 86400000) + 3600000,
+        isCompleted: true,
+        exercises: [{
+          id: 'we-old',
+          exerciseId: 'bench',
+          exerciseName: 'Bench',
+          category: 'barbell' as const,
+          primaryMuscle: 'chest' as const,
+          targetRepRange: [8, 12] as [number, number],
+          progressionModel: 'double_progression' as const,
+          minIncrement: 2.5,
+          restSeconds: 180,
+          sets: [
+            { id: '1', setNumber: 1, type: 'working' as const, weight: 20, targetReps: 12, completedReps: 12, rir: 2, completed: true },
+          ]
+        }],
+        totalVolume: 240,
+        totalSets: 1
+      },
+      {
+        id: 's-newer',
+        routineName: 'Push',
+        startTime: Date.now() - (1 * 86400000),
+        endTime: Date.now() - (1 * 86400000) + 3600000,
+        isCompleted: true,
+        exercises: [{
+          id: 'we-new',
+          exerciseId: 'bench',
+          exerciseName: 'Bench',
+          category: 'barbell' as const,
+          primaryMuscle: 'chest' as const,
+          targetRepRange: [8, 12] as [number, number],
+          progressionModel: 'double_progression' as const,
+          minIncrement: 2.5,
+          restSeconds: 180,
+          sets: [
+            { id: '2', setNumber: 1, type: 'working' as const, weight: 22.5, targetReps: 12, completedReps: 9, rir: 2, completed: true },
+          ]
+        }],
+        totalVolume: 202.5,
+        totalSets: 1
+      }
+    ];
+
+    const rec = calculateProgression({
+      exerciseId: 'bench',
+      exerciseName: 'Bench',
+      progressionModel: 'double_progression',
+      targetRepRange: [8, 12],
+      minIncrement: 2.5,
+      targetSets: 1,
+      history
+    });
+
+    // It should recognize 22.5 kg from 1 day ago, NOT 20 kg from 5 days ago
+    expect(rec.recommendedWeight).toBe(22.5);
+    expect(rec.status).toBe('maintain');
+  });
+});

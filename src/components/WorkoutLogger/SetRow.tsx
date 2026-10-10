@@ -70,8 +70,10 @@ export const SetRow: React.FC<SetRowProps> = ({
         <input
           type="number"
           step="any"
+          inputMode="decimal"
           value={set.weight === 0 ? '' : set.weight}
           placeholder="0"
+          onFocus={e => e.target.select()}
           onChange={e => onUpdate({ weight: parseFloat(e.target.value) || 0 })}
           className={`w-full bg-gym-900 text-center font-mono font-bold text-sm py-1.5 rounded-lg border focus:outline-none transition-colors ${
             set.completed 
@@ -85,8 +87,10 @@ export const SetRow: React.FC<SetRowProps> = ({
       <div className="col-span-2">
         <input
           type="number"
+          inputMode="numeric"
           value={set.completedReps === 0 ? '' : set.completedReps}
           placeholder="0"
+          onFocus={e => e.target.select()}
           onChange={e => onUpdate({ completedReps: parseInt(e.target.value) || 0 })}
           className={`w-full bg-gym-900 text-center font-mono font-bold text-sm py-1.5 rounded-lg border focus:outline-none transition-colors ${
             set.completed 
