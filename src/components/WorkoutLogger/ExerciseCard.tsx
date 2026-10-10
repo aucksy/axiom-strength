@@ -9,21 +9,32 @@ import {
   ChevronUp, 
   Info,
   TrendingUp,
-  RotateCcw
+  RotateCcw,
+  ArrowLeftRight,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
-import { WorkoutExercise, WorkoutSet, WeightUnit, ProgressionRecommendation } from '../../types';
+import { WorkoutExercise, WorkoutSet, WeightUnit, ProgressionRecommendation, Exercise, WorkoutSession } from '../../types';
 import { SetRow } from './SetRow';
 import { PlateCalculatorModal } from './PlateCalculatorModal';
 import { WarmupCalculatorModal } from './WarmupCalculatorModal';
+import { ExerciseSubstitutionModal } from './ExerciseSubstitutionModal';
 
 interface ExerciseCardProps {
   exercise: WorkoutExercise;
   unit: WeightUnit;
   previousSets?: WorkoutSet[];
   recommendation?: ProgressionRecommendation;
+  allExercises?: Exercise[];
+  workoutHistory?: WorkoutSession[];
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   onUpdateExercise: (updated: WorkoutExercise) => void;
   onRemoveExercise: () => void;
   onSetCompleted: (exercise: WorkoutExercise, set: WorkoutSet) => void;
+  onSubstitute?: (newExercise: Exercise, estimatedStartingWeight: number) => void;
 }
 
 export const ExerciseCard: React.FC<ExerciseCardProps> = ({
@@ -31,12 +42,20 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
   unit,
   previousSets,
   recommendation,
+  allExercises = [],
+  workoutHistory = [],
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
   onUpdateExercise,
   onRemoveExercise,
   onSetCompleted,
+  onSubstitute,
 }) => {
   const [showPlateCalc, setShowPlateCalc] = useState(false);
   const [showWarmupCalc, setShowWarmupCalc] = useState(false);
+  const [showSubModal, setShowSubModal] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
 
@@ -159,6 +178,38 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
         </div>
 
         <div className="flex items-center space-x-1">
+          {/* Reordering Controls */}
+          {canMoveUp && onMoveUp && (
+            <button
+              onClick={onMoveUp}
+              title="Move exercise up"
+              className="p-2 text-slate-400 hover:text-white bg-gym-800/60 hover:bg-gym-800 rounded-xl transition-colors"
+            >
+              <ArrowUp className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {canMoveDown && onMoveDown && (
+            <button
+              onClick={onMoveDown}
+              title="Move exercise down"
+              className="p-2 text-slate-400 hover:text-white bg-gym-800/60 hover:bg-gym-800 rounded-xl transition-colors"
+            >
+              <ArrowDown className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Exercise Substitution */}
+          {onSubstitute && allExercises.length > 0 && (
+            <button
+              onClick={() => setShowSubModal(true)}
+              title="Substitute exercise (equipment busy)"
+              className="p-2 text-slate-400 hover:text-cyan-400 bg-gym-800/60 hover:bg-gym-800 rounded-xl transition-colors"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+
           {exercise.category === 'barbell' && (
             <button
               onClick={() => setShowPlateCalc(true)}
@@ -295,6 +346,20 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
           unit={unit}
           onClose={() => setShowWarmupCalc(false)}
           onApplyWarmup={handleApplyWarmup}
+        />
+      )}
+
+      {showSubModal && onSubstitute && (
+        <ExerciseSubstitutionModal
+          currentExercise={exercise}
+          allExercises={allExercises}
+          workoutHistory={workoutHistory}
+          unit={unit}
+          onClose={() => setShowSubModal(false)}
+          onSubstitute={(newEx, estWeight) => {
+            onSubstitute(newEx, estWeight);
+            setShowSubModal(false);
+          }}
         />
       )}
     </div>

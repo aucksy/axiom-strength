@@ -161,4 +161,61 @@ export class CoachEngine {
       weeklyConsistency: Math.round((recentSessions.length / 4) * 10) / 10
     };
   }
+
+  /**
+   * Generates tailored evidence-based plateau breaker protocols
+   */
+  static getPlateauBreakerProtocols(
+    exerciseName: string,
+    currentWeight: number,
+    unit: string
+  ): {
+    id: string;
+    name: string;
+    badge: string;
+    description: string;
+    protocolSteps: string[];
+    scientificRationale: string;
+  }[] {
+    const deloadWeight = Math.round(currentWeight * 0.9 * 2) / 2;
+
+    return [
+      {
+        id: 'deload_velocity',
+        name: '10% Load Reset & Bar Velocity Ramp',
+        badge: 'Recommended First Step',
+        description: `Drop working load from ${currentWeight} ${unit} to ${deloadWeight} ${unit} for 1–2 workouts to dissipate accumulated joint and neuromuscular fatigue.`,
+        protocolSteps: [
+          `Session 1: Perform working sets at ${deloadWeight} ${unit} with crisp 2-second eccentric and explosive concentric speed.`,
+          `Session 2: Add 1 rep per set while maintaining RIR 2.`,
+          `Session 3: Return to ${currentWeight} ${unit} — notice how significantly faster the bar moves.`
+        ],
+        scientificRationale: 'Zourdos et al. (2016) demonstrated that temporary load reduction dissipates localized central and peripheral fatigue without losing muscle cross-sectional area.'
+      },
+      {
+        id: 'rep_bracket_shift',
+        name: 'Rep Bracket Periodization Shift',
+        badge: 'Motor Unit Recruitment',
+        description: 'Shift repetition bracket (e.g. from 8–12 reps down to 5–8 reps or vice-versa) for a 3–4 week mesocycle.',
+        protocolSteps: [
+          'If stalled in 8–12 reps: Increase load by 10% and train in the 5–8 rep strength bracket.',
+          'If stalled in 5–8 reps: Reduce load by 12% and accumulate volume in the 10–14 rep hypertrophy bracket.',
+          'Re-sensitizes mechanosensors and engages different motor unit recruitment profiles.'
+        ],
+        scientificRationale: 'Schoenfeld et al. (2017) meta-analysis showed varying rep brackets across training blocks recruits both Type I and Type II fibers more comprehensively than single static rep ranges.'
+      },
+      {
+        id: 'variation_swap',
+        name: 'Biomechanic Variation Substitution',
+        badge: 'Hypertrophy Resensitization',
+        description: `Temporarily rotate ${exerciseName} out for a close mechanical alternative for 4–6 weeks.`,
+        protocolSteps: [
+          'Choose a variation targeting the exact same prime mover (e.g. Barbell Bench -> Incline DB Press; Back Squat -> Hack Squat).',
+          'Progress the substitute movement for 4–6 weeks until a new personal record is established.',
+          `Reintroduce ${exerciseName} — the novel neural pathway and recovery from pattern overload frequently unlocks immediate progress.`
+        ],
+        scientificRationale: 'Vigotsky et al. (2022) highlighted that pattern overload can cause regional muscle inhibition; altering the resistance curve restores peak force output.'
+      }
+    ];
+  }
 }

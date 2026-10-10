@@ -6,7 +6,9 @@ import {
   Plus, 
   Dumbbell, 
   AlertTriangle,
-  RotateCcw
+  RotateCcw,
+  Activity,
+  Sparkles
 } from 'lucide-react';
 import { 
   WorkoutSession, 
@@ -19,6 +21,7 @@ import {
 import { ExerciseCard } from './ExerciseCard';
 import { RestTimerBar } from './RestTimerBar';
 import { WorkoutCompleteModal } from './WorkoutCompleteModal';
+import { ReadinessCheckModal, ReadinessAssessment } from './ReadinessCheckModal';
 import { calculateProgression } from '../../engine/progressionEngine';
 import { audioService } from '../../services/audioService';
 import { storageService } from '../../services/storageService';
@@ -49,6 +52,8 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
   const [searchExerciseQuery, setSearchExerciseQuery] = useState('');
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [showCancelPrompt, setShowCancelPrompt] = useState(false);
+  const [showReadinessModal, setShowReadinessModal] = useState(false);
+  const [readiness, setReadiness] = useState<ReadinessAssessment | null>(null);
 
   // Live session timer
   useEffect(() => {
@@ -108,6 +113,75 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
       totalVolume: calculateTotalVolume(filtered),
       totalSets: calculateTotalSets(filtered),
     };
+    onUpdateWorkout(updatedWorkout);
+    storageService.saveActiveWorkout(updatedWorkout);
+  };
+
+  const handleMoveExercise = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= workout.exercises.length) return;
+
+    const reordered = [...workout.exercises];
+    const temp = reordered[index];
+    reordered[index] = reordered[targetIndex];
+    reordered[targetIndex] = temp;
+
+    const updatedWorkout: WorkoutSession = {
+      ...workout,
+      exercises: reordered,
+    };
+    onUpdateWorkout(updatedWorkout);
+    storageService.saveActiveWorkout(updatedWorkout);
+  };
+
+  const handleSubstituteExercise = (oldExerciseId: string, newExercise: Exercise, estimatedStartingWeight: number) => {
+    const targetIdx = workout.exercises.findIndex(e => e.id === oldExerciseId);
+    if (targetIdx === -1) return;
+
+    const oldEx = workout.exercises[targetIdx];
+    const rec = calculateProgression({
+      exerciseId: newExercise.id,
+      exerciseName: newExercise.name,
+      progressionModel: newExercise.defaultProgressionModel,
+      targetRepRange: newExercise.targetRepRange,
+      minIncrement: newExercise.minIncrement,
+      targetSets: oldEx.sets.length,
+      history: workoutHistory,
+      currentSessionDate: workout.startTime
+    });
+
+    const substitutedWeight = estimatedStartingWeight > 0 ? estimatedStartingWeight : 
+                              (rec.recommendedWeight > 0 ? rec.recommendedWeight : (settings.unit === 'kg' ? 20 : 45));
+
+    const substitutedEx: WorkoutExercise = {
+      id: oldEx.id,
+      exerciseId: newExercise.id,
+      exerciseName: newExercise.name,
+      category: newExercise.category,
+      primaryMuscle: newExercise.primaryMuscle,
+      targetRepRange: newExercise.targetRepRange,
+      progressionModel: newExercise.defaultProgressionModel,
+      minIncrement: newExercise.minIncrement,
+      restSeconds: newExercise.defaultRestSeconds,
+      recommendation: rec,
+      sets: oldEx.sets.map(s => ({
+        ...s,
+        weight: substitutedWeight,
+        targetReps: newExercise.targetRepRange[1],
+        completedReps: s.completed ? s.completedReps : newExercise.targetRepRange[0],
+      }))
+    };
+
+    const updatedExercises = [...workout.exercises];
+    updatedExercises[targetIdx] = substitutedEx;
+
+    const updatedWorkout: WorkoutSession = {
+      ...workout,
+      exercises: updatedExercises,
+      totalVolume: calculateTotalVolume(updatedExercises),
+      totalSets: calculateTotalSets(updatedExercises),
+    };
+
     onUpdateWorkout(updatedWorkout);
     storageService.saveActiveWorkout(updatedWorkout);
   };
@@ -232,7 +306,21 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
           </h2>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 md:space-x-3">
+          {/* Readiness Auto-Regulation Button */}
+          <button
+            onClick={() => setShowReadinessModal(true)}
+            className={`hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+              readiness 
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
+                : 'bg-gym-950 border-gym-800 text-slate-400 hover:text-white'
+            }`}
+            title="Pre-workout recovery & fatigue assessment"
+          >
+            <Activity className="w-3.5 h-3.5 text-emerald-400" />
+            <span>{readiness ? `${readiness.readinessScore}% Readiness` : 'Readiness'}</span>
+          </button>
+
           {/* Duration */}
           <div className="flex items-center space-x-1.5 bg-gym-950 px-3 py-1.5 rounded-xl border border-gym-800 text-slate-200 font-mono text-sm font-bold">
             <Clock className="w-4 h-4 text-emerald-400" />
@@ -259,18 +347,52 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
         </div>
       </div>
 
+      {/* Auto-Regulation Readiness Banner */}
+      {readiness && (
+        <div className={`p-4 rounded-3xl border mb-5 flex items-start justify-between text-xs animate-in fade-in duration-200 shadow-xl ${
+          readiness.autoRegulateAction === 'push'
+            ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300'
+            : readiness.autoRegulateAction === 'conserve'
+            ? 'bg-amber-950/40 border-amber-500/30 text-amber-300'
+            : 'bg-cyan-950/40 border-cyan-500/30 text-cyan-300'
+        }`}>
+          <div className="space-y-0.5">
+            <div className="font-bold flex items-center space-x-1.5 text-white">
+              <Sparkles className="w-4 h-4 text-emerald-400" />
+              <span>Auto-Regulation Active: {readiness.readinessScore}% Recovery Score</span>
+            </div>
+            <p className="text-[11px] text-slate-300">
+              {readiness.recommendationNote}
+            </p>
+          </div>
+          <button 
+            onClick={() => setShowReadinessModal(true)}
+            className="text-[10px] uppercase font-mono tracking-wider underline hover:text-white ml-3 flex-shrink-0 text-slate-400"
+          >
+            Recalibrate
+          </button>
+        </div>
+      )}
+
       {/* Exercises List */}
       <div className="space-y-5">
-        {workout.exercises.map(exercise => (
+        {workout.exercises.map((exercise, index) => (
           <ExerciseCard
             key={exercise.id}
             exercise={exercise}
             unit={settings.unit}
             previousSets={getPreviousSetsForExercise(exercise.exerciseId)}
             recommendation={exerciseRecommendations[exercise.exerciseId]}
+            allExercises={allExercises}
+            workoutHistory={workoutHistory}
+            canMoveUp={index > 0}
+            canMoveDown={index < workout.exercises.length - 1}
+            onMoveUp={() => handleMoveExercise(index, 'up')}
+            onMoveDown={() => handleMoveExercise(index, 'down')}
             onUpdateExercise={handleUpdateExercise}
             onRemoveExercise={() => handleRemoveExercise(exercise.id)}
             onSetCompleted={handleSetCompleted}
+            onSubstitute={(newEx, estWeight) => handleSubstituteExercise(exercise.id, newEx, estWeight)}
           />
         ))}
 
@@ -391,6 +513,14 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Readiness Check Modal */}
+      {showReadinessModal && (
+        <ReadinessCheckModal
+          onClose={() => setShowReadinessModal(false)}
+          onApplyReadiness={assessment => setReadiness(assessment)}
+        />
       )}
     </div>
   );
